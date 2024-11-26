@@ -17,6 +17,7 @@ type ScreamConfig {
     target: Result(String, Nil),
     runtime: Result(String, Nil),
     dependencies: Result(List(String), Nil),
+    extra: Result(List(String), Nil),
   )
 }
 
@@ -43,8 +44,9 @@ fn command() {
     use target <- clip.parameter
     use runtime <- clip.parameter
     use dependencies <- clip.parameter
+    use extra <- clip.parameter
 
-    ScreamConfig(script:, target:, runtime:, dependencies:)
+    ScreamConfig(script:, target:, runtime:, dependencies:, extra:)
   })
   |> clip.arg(
     arg.new("script")
@@ -61,7 +63,14 @@ fn command() {
   |> clip.opt(
     opt.new("dependencies")
     |> opt.short("d")
-    |> opt.help("Comma separated extra Gleam dependencies")
+    |> opt.help("Comma separated Gleam dependencies")
+    |> opt.map(string.split(_, on: ","))
+    |> opt.optional,
+  )
+  |> clip.opt(
+    opt.new("extra")
+    |> opt.short("e")
+    |> opt.help("Comma separated extra files to include into project root")
     |> opt.map(string.split(_, on: ","))
     |> opt.optional,
   )
@@ -78,7 +87,7 @@ fn run(config: ScreamConfig) -> Result(Nil, ScreamError) {
       |> result.map_error(FileError(_))
     }
 
-  let assert Ok(Nil) = setup(temp_dir, config.script)
+  let assert Ok(Nil) = setup(temp_dir, config)
 
   let opts =
     [
@@ -109,9 +118,9 @@ fn run(config: ScreamConfig) -> Result(Nil, ScreamError) {
   }
 }
 
-fn setup(path: String, filename: String) -> Result(Nil, ScreamError) {
+fn setup(path: String, config: ScreamConfig) -> Result(Nil, ScreamError) {
   let name =
-    string.split(filename, ".gleam")
+    string.split(config.script, ".gleam")
     |> list.first
     |> result.unwrap("")
 
@@ -135,11 +144,26 @@ gleam_stdlib = \">= 0.34.0 and < 2.0.0\"
     )
     |> result.map_error(FileError(_)),
   )
-  simplifile.copy_file(
-    filepath.join(".", filename),
-    filepath.join(src_dir, filename),
+  use _ <- result.try(
+    simplifile.copy_file(
+      filepath.join(".", config.script),
+      filepath.join(src_dir, config.script),
+    )
+    |> result.map_error(FileError(_)),
   )
-  |> result.map_error(FileError(_))
+  case config.extra {
+    Ok([]) -> Ok(Nil)
+    Ok(extras) -> {
+      list.map(extras, fn(extra) {
+        simplifile.copy(filepath.join(".", extra), filepath.join(path, extra))
+        |> result.map_error(FileError(_))
+      })
+      |> result.all
+      |> result.replace(Nil)
+    }
+
+    Error(_) -> Ok(Nil)
+  }
 }
 
 fn install_deps(
