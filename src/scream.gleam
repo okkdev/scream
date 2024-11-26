@@ -98,7 +98,7 @@ fn run(config: ScreamConfig) -> Result(Nil, ScreamError) {
         |> result.map(fn(t) { ["--runtime=" <> t] })
         |> result.unwrap([]),
     ]
-    |> list.concat
+    |> list.flatten
 
   // use _ <- result.try(install_deps(temp_dir, config.dependencies))
   case install_deps(temp_dir, config.dependencies) {
