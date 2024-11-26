@@ -16,9 +16,12 @@ pub fn main() {
 
 Further documentation can be found at <https://hexdocs.pm/script>.
 
-## Development
+## Compile binary
 
 ```sh
-gleam run   # Run the project
-gleam test  # Run the tests
+gleam build
+deno compile --no-check -o ./dist/scream -A ./glue.mjs
+
+# 🎉
+./dist/scream
 ```
